@@ -122,16 +122,22 @@ def form_submit(action, post_id):
 
 @app.route('/delete/<int:id>', methods=['POST'])
 def delete_post(id):
-    if request.method == 'POST':
-        print 'deleting, id:', id
-        result = remove_post(id)
-        return redirect('/form_submit/deleted/%d'%(id, ))
+    if request.method == 'POST' and session['user_id']:
+        curs = conn.execute('SELECT * FROM post where post_id = ?', (id,))
+        post_rec = curs.fetchone()
+        if post_rec['user_id'] == session['user_id'] or session['user_id'] == 'admin':
+            print 'deleting, id:', id
+            result = remove_post(id)
+            return redirect('/form_submit/deleted/%d'%(id, ))
+        else:
+            flash('Bad User')
+            return redirect('/')
     else:
         return """Shouldnt be on this page and raise an error"""
 
 @app.route('/create', methods=['GET', 'POST'])
 def create_post():
-    if request.method == "POST":
+    if request.method == "POST" and session['user_id']:
         title = request.form.get('title', '')
         post = request.form.get('blog-post', '')
         insert_post(title=title, post=post,user=session['user_id'])
@@ -143,8 +149,6 @@ def create_post():
 def detail_post(id, slug):
     curs = conn.execute('SELECT * FROM post where post_id = ?', (id, ))
     result = curs.fetchone()
-
-
     return render_template('post_detail.html', post = result)
 
 
@@ -152,15 +156,22 @@ def detail_post(id, slug):
 @app.route('/update/<int:id>', methods=['GET', 'POST'])
 def update_post(id):
 
-    if request.method == "POST":
+    if request.method == "POST" and session['user_id']:
         title = request.form.get('title', '')
         post = request.form.get('blog-post', '')
-        change_post(title=title, post=post, post_id=id)
-        return redirect('/form_submit/updated/%d'%(id,))
+        curs = conn.execute('SELECT * FROM post where post_id = ?', (id,))
+        post_rec = curs.fetchone()
+        if post_rec['user_id'] == session['user_id'] or session['user_id'] == 'admin':
+            change_post(title=title, post=post, post_id=id)
+            return redirect('/form_submit/updated/%d'%(id,))
+        else:
+            flash('Bad User')
+            return redirect('/')
+
     else:
         curs = conn.execute('SELECT * FROM post where post_id = ?', (id,))
         post = curs.fetchone()
-        return render_template('post_update.html', title=post[3], body=post[4])
+        return render_template('post_update.html', post = post)
 
 
 ##handling users
@@ -213,4 +224,4 @@ if __name__ == "__main__":
 
     init_db()
     print BASE_DIR
-    app.run(debug=False)
+    app.run(debug=True)
