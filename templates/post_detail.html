@@ -5,18 +5,19 @@
 <div class="container">
     <div class="row">
         <div class="col-md-6">
-            <h3 id="title">{{ post[3] }}</h3>
-            <h5>{{ post[2] }} by {{ post[1] }} </h5>
+            <h3 id="title">{{ post['title'] }}</h3>
+            <h5>{{ post['user_id'] }} by {{ post['date'] }} </h5>
             <br>
-            <pre id="blog-post" style="">{{ post[4] }}</pre>
+            <pre id="blog-post" style="">{{ post['body'] }}</pre>
             <br><hr><br>
-            <button class="btn btn-warning">
-                <a href="/update/{{ post[0] }}" style="color: inherit">Update</a>
-            </button>
-            <form action="/delete/{{ post[0] }}" method="post">
-                <input type="submit" class="btn btn-danger" value="Delete">
-            </form>
-
+            {% if session['user_id'] == post['user_id'] or session['user_id'] == 'admin' %}
+                <button class="btn btn-warning">
+                    <a href="/update/{{ post['post_id'] }}" style="color: inherit">Update</a>
+                </button>
+                <form action="/delete/{{ post['post_id'] }}" method="post">
+                    <input type="submit" class="btn btn-danger" value="Delete">
+                </form>
+            {% endif %}
         </div>
     </div>
 </div>

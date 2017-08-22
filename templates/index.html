@@ -9,20 +9,22 @@
     <div class="row">
         <div class="col-md-10">
             <h1>Posts</h1>
-            <a href="/create">Create a New Post!</a>
+            {% if session['user_id'] %}
+                <a href="/create">Create a New Post!</a>
+            {% endif %}
             <br>
             <br>
             <hr>
             {% for post in posts %}
 
                 <h2 id="title">
-                    <a href="/post/{{ post[0] }}/{{ post[5] }}">
-                        {{ post[3] }}
+                    <a href="/post/{{ post['post_id'] }}/{{ post['slug'] }}">
+                        {{ post['title'] }}
                     </a>
                 </h2>
-                <h5>{{ post[2] }} by {{ post[1] }} </h5>
+                <h5>{{ post['user_id'] }} by {{ post['date'] }} </h5>
                 <br>
-                <pre id="blog-post" style="">{{ post[4] }}</pre>
+                <pre id="blog-post" style="">{{ post['body'] }}</pre>
 
                 <hr>
 

@@ -1,13 +1,14 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, flash, session
 import sqlite3
 import re
 import unicodedata
 import os
-
+from werkzeug.security import check_password_hash, generate_password_hash
 
 
 #config methods
 BASE_DIR = os.path.dirname(__file__)
+SECRET_KEY = 'dev, key not a real one'
 
 #util methods
 
@@ -28,6 +29,8 @@ def slugify(value):
 
 #create a DB connection
 conn = sqlite3.connect(os.path.join(BASE_DIR, 'db.sqlite3'), check_same_thread=False) #not recommended, just done for this demo
+conn.row_factory = sqlite3.Row
+
 def init_db():
     conn.execute('''
       CREATE TABLE IF NOT EXISTS 
@@ -38,6 +41,14 @@ def init_db():
         title TEXT NOT NULL, 
         body TEXT NOT NULL,
         slug TEXT NOT NULL
+    )
+    ''')
+    conn.execute('''
+    CREATE TABLE IF NOT EXISTS 
+    user (
+      user_id TEXT NOT NULL PRIMARY KEY,
+      pass_hash TEXT NOT NULL,
+      create_date TIMESTAMP  DEFAULT CURRENT_TIMESTAMP NOT NULL
     )
     ''')
     conn.commit()
@@ -70,15 +81,34 @@ def change_post(title, post, post_id):
     ''', (title, post, slug, post_id))
     conn.commit()
 
+def get_user(user_id):
+    curs = conn.execute('''
+    SELECT
+      *
+    FROM user
+    WHERE user_id = ?
+    ''', (user_id,))
+    return curs.fetchone()
+
+def create_user(user_id, password):
+    conn.execute('''
+    INSERT INTO user(
+      user_id, pass_hash
+    )
+    VALUES (?, ?)
+    ''', (user_id, generate_password_hash(password=password)))
+    conn.commit()
+
 #Controllers
 
 DEFAULT_USER = 'admin'
 
 app = Flask(__name__)
-
+app.config.from_object(__name__)
 
 @app.route('/')
 def index():
+    print session
     curs = conn.execute('SELECT * FROM post ORDER BY DATE DESC ')
     posts = [post for post in curs.fetchall()]
     return render_template('index.html', posts = posts)
@@ -101,11 +131,10 @@ def delete_post(id):
 
 @app.route('/create', methods=['GET', 'POST'])
 def create_post():
-
     if request.method == "POST":
         title = request.form.get('title', '')
         post = request.form.get('blog-post', '')
-        insert_post(title=title, post=post,user=DEFAULT_USER)
+        insert_post(title=title, post=post,user=session['user_id'])
         return redirect('/form_submit/created/'+title)
 
     return render_template('post_create.html')
@@ -114,6 +143,8 @@ def create_post():
 def detail_post(id, slug):
     curs = conn.execute('SELECT * FROM post where post_id = ?', (id, ))
     result = curs.fetchone()
+
+
     return render_template('post_detail.html', post = result)
 
 
@@ -131,9 +162,55 @@ def update_post(id):
         post = curs.fetchone()
         return render_template('post_update.html', title=post[3], body=post[4])
 
+
+##handling users
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+
+    #this is too nested
+
+    if request.method == 'POST':
+        un = request.form.get('user_name')
+        pw = request.form.get('password')
+        print type(un), type(pw)
+        if (not un) or (not pw):
+            flash('Username or Password Missing')
+            return redirect('/login')
+        else:
+            un = un.replace(' ', '_') #should clean the un
+            user = get_user(user_id=un)
+            print 'user found', user
+            if user:
+                print 'user found'
+                if check_password_hash(pwhash=user['pass_hash'], password=pw):
+                    session['user_id'] = user['user_id']
+                    flash('User %s Logged In '%(user['user_id'], ))
+                    return redirect('/')
+                else:
+                    print 'wrong password'
+                    flash('Wrong password')
+                    return redirect('/login')
+            else:
+                create_user(user_id=un, password=pw)
+                user = get_user(un)
+                session['user_id'] = user['user_id']
+                return redirect('/')
+
+        return redirect('/') #always redirect the post
+
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    session.pop('user_id', None)
+    flash("You're Logged Out")
+    return redirect('/')
+
 if __name__ == "__main__":
     import os
 
     init_db()
     print BASE_DIR
-    app.run(debug=True)
+    app.run(debug=False)
